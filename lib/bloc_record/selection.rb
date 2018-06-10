@@ -151,7 +151,7 @@ module Selection
         orderArr << arg.map{|key, value| "#{key} #{value}"}
       end
     end
-    order = orderArray.join(",")
+    order = orderArr.join(",")
     puts order
 
     rows = connection.execute <<-SQL
@@ -202,7 +202,9 @@ module Selection
   end
 
   def rows_to_array(rows)
-    rows.map { |row| new(Hash[columns.zip(row)]) }
+    collection = BlocRecord::Collection.new
+    rows.each { |row| collection << new(Hash[columns.zip(row)]) }
+    collection
   end
 
   def method_missing(method_name, *args)
