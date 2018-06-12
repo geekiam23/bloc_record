@@ -1,4 +1,5 @@
 require 'sqlite3'
+require 'bloc_record/error_handling'
  
 module Selection
   def find(*ids)
@@ -205,18 +206,5 @@ module Selection
     collection = BlocRecord::Collection.new
     rows.each { |row| collection << new(Hash[columns.zip(row)]) }
     collection
-  end
-
-  def method_missing(method_name, *args)
-    if method_name.match(/find_by_/)
-      attribute = method_name.to_s.split('find_by_')[1]
-      if columns.include?(attribute)
-        find_by(attribute, *args)
-      else
-        puts "#{attribute} does not exist in the database -- please try again."
-      end
-    else
-      puts "#{method_name} is not a valid input -- please try again."
-    end
   end
 end
