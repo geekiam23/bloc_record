@@ -33,7 +33,12 @@ module Persistence
   end
   
   def update_attributes(updates)
+    return if updates.empty?
     self.class.update(self.id, updates)
+  end
+
+  def destroy
+    self.class.destroy(self.id)
   end
 
   module ClassMethods
@@ -57,32 +62,55 @@ module Persistence
     end
   end
 
-  def update(ids, updates)
-    if ids
-      if updates.is_a? Array
-        ids.each_with_index do |id, index|
+  def update(id, updates)
+    case id
+    when Array
+      id.each_with_index do |id, index|
           update(id, updates[index])
-        end
-      else
-        updates = BlocRecord::Utility.convert_keys(updates)
-        updates.delete "id"
-        updates_array = updates.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
-
-        if ids.class == Fixnum
-          where_clause = "WHERE id = #{ids};"
-        elsif ids.class == Array
-          where_clause = ids.empty? ? ";" : "WHERE id IN (#{ids.join(",")});"
-        else
-          where_clause = ";"
-        end
-        
-        connection.execute <<-SQL
-          UPDATE #{table}
-          SET #{updates_array * ","} #{where_clause}
-        SQL
-
-        true
       end
+    else
+      updates = BlocRecord::Utility.convert_keys(updates)
+      updates.delete "id"
+
+      updates_array = updates.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
+
+      execute <<-SQL
+        UPDATE #{table}
+        SET #{updates_array * ","}
+        WHERE id = #{id};
+      SQL
+
+      true
     end
+  end
+
+  def destroy(*id)
+    if id.length > 1
+      where_clause = "WHERE id IN (#{id.join(",")});"
+    else
+      where_clause = "WHERE id = #{id.first};"
+    end
+
+    connection.execute <<-SQL
+      DELETE FROM #{table} #{where_clause}
+    SQL
+
+    true
+  end
+
+   
+  def destroy_all(conditions_hash=nil)
+    if conditions_hash && !conditions_hash.empty?
+      conditions_hash = BlocRecord::Utility.convert_keys(conditions_hash)
+      conditions = conditions_hash.map {|key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}"}.join(" and ")
+
+      connection.execute <<-SQL
+        DELETE FROM #{table}
+        WHERE #{conditions};
+      SQL
+    else
+      connection.execute <<-SQL
+      DELETE FROM #{table}
+    SQL
   end
 end
