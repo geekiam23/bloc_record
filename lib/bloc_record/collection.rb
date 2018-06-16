@@ -42,5 +42,15 @@ module BlocRecord
       end
       results
     end
+
+    def destroy_all
+      if self.length > 0
+        self.each do |element|
+          element.destroy
+        end
+      else
+        puts "Nothing to destroy, Sorry!"
+      end
+    end
   end
 end

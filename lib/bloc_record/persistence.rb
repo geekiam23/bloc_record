@@ -60,57 +60,66 @@ module Persistence
       data["id"] = connection.execute("SELECT last_insert_rowid();")[0][0]
       new(data)
     end
-  end
 
-  def update(id, updates)
-    case id
-    when Array
-      id.each_with_index do |id, index|
-          update(id, updates[index])
+    def update(id, updates)
+      case id
+      when Array
+        id.each_with_index do |id, index|
+            update(id, updates[index])
+        end
+      else
+        updates = BlocRecord::Utility.convert_keys(updates)
+        updates.delete "id"
+
+        updates_array = updates.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
+
+        execute <<-SQL
+          UPDATE #{table}
+          SET #{updates_array * ","}
+          WHERE id = #{id};
+        SQL
+
+        true
       end
-    else
-      updates = BlocRecord::Utility.convert_keys(updates)
-      updates.delete "id"
+    end
 
-      updates_array = updates.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
+    def destroy(*id)
+      if id.length > 1
+        where_clause = "WHERE id IN (#{id.join(",")});"
+      else
+        where_clause = "WHERE id = #{id.first};"
+      end
 
-      execute <<-SQL
-        UPDATE #{table}
-        SET #{updates_array * ","}
-        WHERE id = #{id};
+      connection.execute <<-SQL
+        DELETE FROM #{table} #{where_clause}
       SQL
 
       true
     end
-  end
 
-  def destroy(*id)
-    if id.length > 1
-      where_clause = "WHERE id IN (#{id.join(",")});"
-    else
-      where_clause = "WHERE id = #{id.first};"
+    
+    def destroy_all(conditions_hash=nil)
+      if conditions_hash && !conditions_hash.empty?
+        case conditions_params
+        when Hash
+          conditions_hash = BlocRecord::Utility.convert_keys(conditions_hash)
+          conditions = conditions_hash.map {|key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}"}.join(" and ")
+        when String
+          conditions = conditions_params
+        when Array
+          conditions = conditions_params.join("\nOR ")
+        end
+        connection.execute <<-SQL
+          DELETE FROM #{table}
+          WHERE #{conditions};
+        SQL
+      else
+        connection.execute <<-SQL
+          DELETE FROM #{table}
+        SQL
+      end
+
+      true
     end
-
-    connection.execute <<-SQL
-      DELETE FROM #{table} #{where_clause}
-    SQL
-
-    true
-  end
-
-   
-  def destroy_all(conditions_hash=nil)
-    if conditions_hash && !conditions_hash.empty?
-      conditions_hash = BlocRecord::Utility.convert_keys(conditions_hash)
-      conditions = conditions_hash.map {|key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}"}.join(" and ")
-
-      connection.execute <<-SQL
-        DELETE FROM #{table}
-        WHERE #{conditions};
-      SQL
-    else
-      connection.execute <<-SQL
-      DELETE FROM #{table}
-    SQL
   end
 end
